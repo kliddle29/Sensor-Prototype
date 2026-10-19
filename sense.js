@@ -26,7 +26,7 @@ let landmarker = null;
 let lastVideoTime = -1;
 let latestScores = []; // the 52 named scores from the last frame, for the B panel only
 let failed = false;    // the camera did not start; the readout holds the reason
-const raw = { width: 0, flat: 0 }; // near's raw reading, for the D panel only
+const raw = { width: 0, flat: 0, moved: 0 }; // near's and still's raw readings, for the D panel only
 
 // ---- near (KL) ---------------------------------------------------------------
 // How close the nearest person is: 0 at the back of the space, 1 at arm's length
@@ -64,6 +64,35 @@ function nearFromWidth(width) {
   return clamp((back - distance) / (back - 1));
 }
 
+// The nearest person is the widest face in view. still follows the same face.
+function nearestFace(result) {
+  let nearest = null, widest = 0;
+  for (const face of result.faceLandmarks) {
+    const width = faceWidth(face, true);
+    if (width > widest) {
+      nearest = face;
+      widest = width;
+    }
+  }
+  return nearest;
+}
+
+// ---- still (WC) --------------------------------------------------------------
+// How little the person has moved over the last second: 0 while walking or
+// gesturing, 1 when holding completely still. Written at Kenzo's request so the
+// piece answers the camera alone; Will's to tune or rework.
+//
+// The reading follows five points that move with the head but not with the face:
+// forehead (10), between the eyes (168), nose tip (1) and both cheeks (234, 454).
+// Talking, blinking and smiling barely move them, so someone reciting digits can
+// still read as still (field guide no. 08: only the mouth moves). Every tenth of a
+// second it measures how far they moved, in face widths, so the same nod counts
+// the same near the screen or across the room. still adds up the last second.
+const STILL_POINTS = [10, 168, 1, 234, 454];
+const STILL_STEP_MS = 100;   // how often a step is measured
+const STILL_JITTER = 0.015;  // face widths a still face seems to move in one step; ignored
+const STILL_FULL_MOVE = 0.5; // face widths moved in one second that reads as 0
+
 // ---- Signals --------------------------------------------------------------
 // Each function gets one frame's result and returns a number from 0 to 1.
 // Its name has to match a name in table.js signals.
@@ -79,39 +108,47 @@ const SIGNALS = {
     let seenAt = -Infinity;
     return result => {
       const now = performance.now();
-      if (result.faceLandmarks.length === 0) {
+      const face = nearestFace(result);
+      if (!face) {
         raw.width = raw.flat = 0;
         return now - seenAt < NEAR_KEEP_MS ? last : 0;
       }
-      raw.width = Math.max(...result.faceLandmarks.map(face => faceWidth(face, true)));
-      raw.flat = Math.max(...result.faceLandmarks.map(face => faceWidth(face, false)));
+      raw.width = faceWidth(face, true);
+      raw.flat = faceWidth(face, false);
       last = nearFromWidth(raw.width);
       seenAt = now;
       return last;
     };
   })(),
 
-  // still (WC): how little the person has moved over the last second, from 0
-  // while walking or gesturing to 1 when holding completely still. Will's reader
-  // goes here. Until it does, the mouse keeps driving still (top 0, bottom 1).
-  //
-  // Two patterns to copy:
-  //
-  // A named score from the lab (the B panel shows every name):
-  //   smile: result => (score(result, 'mouthSmileLeft') + score(result, 'mouthSmileRight')) / 2,
-  //
-  // A number that needs the last frame too, kept in a closure (how little the
-  // nose moved since the previous frame; x and y run 0 to 1 across the frame):
-  //   still: (() => {
-  //     let last = null;
-  //     return result => {
-  //       const nose = result.faceLandmarks[0] && result.faceLandmarks[0][1];
-  //       if (!nose) { last = null; return 0; }
-  //       const moved = last ? Math.hypot(nose.x - last.x, nose.y - last.y) : 0;
-  //       last = nose;
-  //       return clamp(1 - moved * 40); // a jump of 1/40 of the frame reads 0
-  //     };
-  //   })(),
+  // still (WC): see above.
+  still: (() => {
+    let before = null; // the five points at the last step, x and y only
+    let beforeAt = -Infinity;
+    const steps = [];  // { at, moved } for the last second
+    return result => {
+      const now = performance.now();
+      const face = nearestFace(result);
+      // A face that vanishes mid-move (Disappearing Act) reads as moving. The
+      // last points stay, so the jump when it comes back counts too.
+      if (!face) return 0;
+      if (now - beforeAt >= STILL_STEP_MS) {
+        const points = STILL_POINTS.map(i => ({ x: face[i].x, y: face[i].y }));
+        if (before) {
+          const aspect = (video.videoHeight || 480) / (video.videoWidth || 640);
+          let moved = 0;
+          points.forEach((p, k) => { moved += Math.hypot(p.x - before[k].x, (p.y - before[k].y) * aspect); });
+          moved /= points.length * faceWidth(face, true);
+          steps.push({ at: now, moved: Math.max(0, moved - STILL_JITTER) });
+        }
+        before = points;
+        beforeAt = now;
+      }
+      while (steps.length && now - steps[0].at > 1000) steps.shift();
+      raw.moved = steps.reduce((sum, step) => sum + step.moved, 0);
+      return clamp(1 - raw.moved / STILL_FULL_MOVE);
+    };
+  })(),
 };
 
 // One of the 52 scores by name, or 0 when no face is in view.
@@ -281,11 +318,15 @@ function drawReadouts() {
     const held = ((performance.now() - since) / 1000).toFixed(1);
     const onMouse = name => window.senseLive && !(window.senseReads && window.senseReads.has(name));
     const lines = Object.entries(s).map(([k, v]) => `${k.padEnd(8)} ${v.toFixed(2)}${onMouse(k) ? '  (mouse)' : ''}`);
-    // near's raw reading: set WIDTH_AT_BACK and WIDTH_AT_ARM from this number
-    const width = `width    ${raw.width.toFixed(3)}  (flat ${raw.flat.toFixed(3)})`;
+    // the raw readings: set WIDTH_AT_BACK and WIDTH_AT_ARM from width, and
+    // STILL_FULL_MOVE from moved
+    const rawLines =
+      `width    ${raw.width.toFixed(3)}  (flat ${raw.flat.toFixed(3)})\n` +
+      `moved    ${raw.moved.toFixed(2)} face widths in the last second`;
+    const keys = window.TABLE.states.map((row, i) => `${i + 1} ${row.name}`).join(', ');
     readout.textContent =
-      `${window.senseLive ? 'camera on' : 'fake: keys 1-9, mouse'}\n` +
-      `state    ${state}  (${held} s)\n` + lines.join('\n') + '\n' + width;
+      `${window.senseLive ? 'camera on' : `fake: keys ${keys}; mouse x and y`}\n` +
+      `state    ${state}  (${held} s)\n` + lines.join('\n') + '\n' + rawLines;
   }
   if (!scores.hidden) {
     scores.textContent = latestScores.length
