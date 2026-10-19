@@ -323,10 +323,11 @@ function drawReadouts() {
     const rawLines =
       `width    ${raw.width.toFixed(3)}  (flat ${raw.flat.toFixed(3)})\n` +
       `moved    ${raw.moved.toFixed(2)} face widths in the last second`;
-    const keys = window.TABLE.states.map((row, i) => `${i + 1} ${row.name}`).join(', ');
+    const onMouseXY = window.TABLE.signals.slice(0, 2).join(' and ');
+    const keys = window.TABLE.states.map((row, i) => `${i + 1} ${row.name}`).join('  ');
+    const header = window.senseLive ? 'camera on' : `fake sensor (mouse x and y: ${onMouseXY})\nkeys     ${keys}`;
     readout.textContent =
-      `${window.senseLive ? 'camera on' : `fake: keys ${keys}; mouse x and y`}\n` +
-      `state    ${state}  (${held} s)\n` + lines.join('\n') + '\n' + rawLines;
+      `${header}\nstate    ${state}  (${held} s)\n` + lines.join('\n') + '\n' + rawLines;
   }
   if (!scores.hidden) {
     scores.textContent = latestScores.length
