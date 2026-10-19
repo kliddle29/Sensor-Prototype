@@ -68,7 +68,7 @@ The constants at the top of `near` and `still` in `sense.js` are guesses until w
 
 ## What stays in the browser
 
-Nothing saves a frame or a landmark list. The model downloads once when Start is clicked; after that the Network panel stays quiet. All sound is made in the page. Screenshots in this repo show the piece, the D panel or the F mesh, never the camera image.
+Nothing saves a frame or a landmark list. The model downloads once when Start is clicked; after that the Network panel stays quiet. MediaPipe's library would also post usage statistics (counts and timings, not frames) to Google once a minute, so `sense.js` refuses that one address. All sound is made in the page. Screenshots in this repo show the piece, the D panel or the F mesh, never the camera image.
 
 ## Break log
 
