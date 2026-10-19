@@ -6,8 +6,8 @@
 //
 // Each row of the table has an owner, and so does its part of this file:
 //   Recursive, Breached      KL
-//   Performative, Planted    WC
-//   nobody                   TS
+//   Performative, Planted    WC   (first drafts from the table's wording, Will's to rework)
+//   nobody                   TS   (first draft from the table's wording, Tate's to rework)
 
 const canvas = document.querySelector('#piece');
 const ctx = canvas.getContext('2d');
@@ -64,6 +64,8 @@ scatter();
 const MODES = {
   nobody:    { drift: 1,   light: 0,    tone: 0 },
   awake:     { drift: 1,   light: 0.55, tone: 0.45 }, // somebody is there and no row has fired yet
+  Performative: { swirl: 1, light: 0.8, tone: 0.3 },
+  Planted:   { floor: 1,   light: 0.85, tone: 0.75 },
   Recursive: { pattern: 1, light: 1,    tone: 0.04 },
   Breached:  { drift: 1,   light: 0.9,  tone: 0.3 },
 };
@@ -174,10 +176,35 @@ function breach(now) {
   chord();
 }
 
+// ---- Performative (WC, first draft) -------------------------------------------
+// Field guide no. 13: the self presented outward to a room. The grain swirls out
+// to the edges, faster the more the visitor moves, and a crowd murmur swells with
+// each movement (see swirl in move() and the murmur in sound()).
+
+// ---- Planted (WC, first draft) --------------------------------------------------
+// Field guide no. 14: a firm, fixed presence. The grain sinks into a level floor
+// along the bottom and the tone stops wavering to hold one low note (see floor in
+// move() and waver in sound()).
+
+// ---- nobody (TS, first draft) ---------------------------------------------------
+// No one there: the screen fades to black and the tone stops (MODES.nobody), and
+// once it's dark the piece erases the pattern the last visitor built, so no
+// trace of one visitor is left for the next.
+
+let erased = true;
+
+function forget() {
+  built = 0;
+  scatter();
+  erased = true;
+}
+
 // ---- Moving the grain -------------------------------------------------------
 
 const DRIFT_SPEED = 14; // pixels a second, at rest
-const OBEY = { drift: 1.2, swirl: 2, floor: 2.5, pattern: 2 }; // how fast grain answers each way, per second
+// How fast grain answers each way, per second. The swirl needs to be quick: grain
+// that lags a turning current slides outward, like a car taking a corner too fast.
+const OBEY = { drift: 1.2, swirl: 6, floor: 2.5, pattern: 2 };
 const PATTERN_PULL = 1.4; // per second: how hard the pattern draws grain to its square
 const PATTERN_TOP_SPEED = 260;
 
@@ -193,10 +220,12 @@ function move(dt, t, now, movement) {
   const coasting = now - burstAt < COAST_MS;
   const obey = 1 - Math.exp(-(coasting ? COAST : rate) * dt);
   // Drifting grain that leaves one edge comes back on the other. Grain that is
-  // headed for a spot of its own doesn't: wrapped, it would have to cross the
-  // whole screen to get back.
-  const wrap = w.pattern + w.floor < 0.01;
+  // headed for a spot or a ring of its own doesn't: wrapped, it would have to
+  // cross the whole screen to get back.
+  const wrap = w.pattern + w.floor + w.swirl < 0.01;
   const driftSpeed = DRIFT_SPEED * (1 + 2 * movement);
+  const spinUp = 0.4 + 2 * movement; // Performative swirls faster as the visitor moves
+  const floorDepth = Math.max(16, H * 0.05);
 
   let lo = null, hi = null, f = 0;
   if (w.pattern > 0.001) {
@@ -218,6 +247,25 @@ function move(dt, t, now, movement) {
       const dy = Math.cos(x * 0.0037 - t * 0.17 + gb[i] * 6.283) + 0.6 * Math.cos(y * 0.0029 + t * 0.11 + ga[i] * 6.283);
       tx += w.drift * dx * driftSpeed;
       ty += w.drift * dy * driftSpeed;
+    }
+
+    if (w.swirl > 0.001) {
+      // Performative (WC): around the centre and out to a ring near the edges,
+      // in screen units that run -1 to 1 so the ring follows the screen's shape
+      const nx = (x - W / 2) / (W / 2), ny = (y - H / 2) / (H / 2);
+      const r = Math.hypot(nx, ny) + 1e-6;
+      const out = (0.72 + 0.18 * gb[i] - r) * 3; // toward this grain's own ring
+      const spin = (0.15 + 0.35 * ga[i]) * spinUp; // radians a second
+      tx += w.swirl * (out * nx / r - spin * ny) * (W / 2);
+      ty += w.swirl * (out * ny / r + spin * nx) * (H / 2);
+    }
+
+    if (w.floor > 0.001) {
+      // Planted (WC): fall to this grain's own depth in a flat layer at the bottom
+      const rest = H - 2 - gb[i] * floorDepth;
+      const fall = Math.min(600, Math.max(-200, (rest - y) * 1.8)) * (0.4 + 0.6 * ga[i]);
+      ty += w.floor * fall;
+      tx += w.floor * (Math.min(W - 2, Math.max(2, x)) - x) * 2; // back on screen if the swirl threw it off
     }
 
     if (lo) {
@@ -250,14 +298,15 @@ function move(dt, t, now, movement) {
 const SHADES = [0.4, 0.65, 1]; // every third grain shares a shade
 
 function draw(dt, t, state, near) {
-  ctx.fillStyle = 'rgb(11, 11, 13)';
+  let total = 0;
+  for (const way of WAYS) total += weight[way];
+  // Performative's swirl leaves short trails: clear only part of the last frame
+  ctx.fillStyle = `rgba(11, 11, 13, ${1 - 0.6 * weight.swirl / total})`;
   ctx.fillRect(0, 0, W, H);
 
   // near (KL), read straight: the closer the visitor, the brighter the grain
   const shown = light * (0.7 + 0.3 * near);
   if (shown > 0.004) {
-    let total = 0;
-    for (const way of WAYS) total += weight[way];
     // Recursive sharpens as it builds: the shake dies away, and the grain takes
     // one size and one shade so a missing grid point shows
     const p = weight.pattern / total;
@@ -286,8 +335,8 @@ function draw(dt, t, state, near) {
 }
 
 // ---- The tone ---------------------------------------------------------------
-// One low tone and Breached's chord, both made here with Web Audio, so nothing
-// downloads. A browser lets a page make sound only after a click or a key, so it
+// One low tone, Performative's murmur and Breached's chord, all made here with
+// Web Audio, so nothing downloads. A browser lets a page make sound only after a click or a key, so it
 // starts on the first one; the Start button counts. M mutes.
 
 let audio = null;
@@ -324,7 +373,22 @@ function startAudio() {
   const waver = voice('triangle', 83.0, 0.35);
   voice('sine', 41.2, 0.6);
 
-  audio = { ac, out, tone, waver };
+  // Performative's crowd murmur (WC): noise through three filters in the range
+  // of speaking voices, each level wandering on its own, like a room talking
+  const noise = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
+  const samples = noise.getChannelData(0);
+  for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+  const hiss = new AudioBufferSourceNode(ac, { buffer: noise, loop: true });
+  const murmur = new GainNode(ac, { gain: 0 });
+  murmur.connect(out);
+  const bands = [350, 800, 1500].map(frequency => {
+    const level = new GainNode(ac, { gain: 0 });
+    hiss.connect(new BiquadFilterNode(ac, { type: 'bandpass', frequency, Q: 2.5 })).connect(level).connect(murmur);
+    return level;
+  });
+  hiss.start();
+
+  audio = { ac, out, tone, waver, murmur, bands };
   ac.resume();
 }
 
@@ -334,12 +398,20 @@ addEventListener('keydown', e => {
   if (e.key.toLowerCase() === 'm') muted = !muted;
 });
 
-function sound(state, mode) {
+function sound(state, mode, movement, t) {
   if (!audio) return;
   const now = audio.ac.currentTime;
   audio.out.gain.setTargetAtTime(muted ? 0 : 0.8, now, 0.05);
   // Recursive fades slowly to near silence; everything else answers within a second
   audio.tone.gain.setTargetAtTime(mode.tone * 0.4, now, state === 'Recursive' ? 1.5 : 0.4);
+  // Planted (WC): the tone stops wavering and holds one low note
+  audio.waver.gain.setTargetAtTime(state === 'Planted' ? 0 : 0.35, now, 0.6);
+  // Performative (WC): the murmur swells with movement while the grain swirls
+  audio.murmur.gain.setTargetAtTime(weight.swirl * movement * 0.6, now, 0.15);
+  audio.bands.forEach((band, k) => {
+    const wander = 0.5 + 0.5 * Math.sin(t * (2.3 + 1.7 * k) + k) * Math.sin(t * (0.9 + 0.6 * k));
+    band.gain.setTargetAtTime(wander, now, 0.08);
+  });
 }
 
 // Breached's chord: A2, C3, E-flat 3 and F-sharp 3, a diminished chord on sawtooth
@@ -368,7 +440,7 @@ let last = performance.now();
 let seenSince = null;
 
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); // never backwards, never a big jump
   last = now;
   const t = now / 1000;
   const { state, signals, since } = window.sense;
@@ -398,9 +470,13 @@ function frame(now) {
   if (state === 'Recursive' && still > STILL_ENOUGH) built = Math.min(MAX_LEVEL, built + LEVELS_PER_SECOND * dt);
   built = Math.max(0, built - LOOSEN_PER_SECOND * clamp01((STILL_ENOUGH - still) / STILL_ENOUGH) * dt);
 
+  // nobody (TS): once the screen is dark, forget the last visitor
+  if (present > 0.5) erased = false;
+  if (state === 'nobody' && present <= 0.5 && light < 0.01 && !erased) forget();
+
   move(dt, t, now, movement);
   draw(dt, t, state, near);
-  sound(state, mode);
+  sound(state, mode, movement, t);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
