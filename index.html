@@ -11,6 +11,7 @@
     #camera { position: fixed; right: 12px; bottom: 12px; width: 200px; transform: scaleX(-1);
               border-radius: 4px; opacity: 0; pointer-events: none; }
     #camera.shown { opacity: 1; }
+    #mesh { position: fixed; inset: 0; width: 100vw; height: 100vh; background: #000; }
     #start { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
              font: 16px/1.2 system-ui, sans-serif; padding: 12px 20px; border-radius: 6px;
              border: 1px solid #f2efe9; background: transparent; color: #f2efe9; cursor: pointer; }
@@ -23,6 +24,7 @@
 </head>
 <body>
   <canvas id="piece"></canvas>
+  <canvas id="mesh" hidden></canvas>
   <video id="camera" playsinline muted></video>
   <button id="start">Start the camera</button>
   <pre id="readout" hidden></pre>

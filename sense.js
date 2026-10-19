@@ -19,6 +19,8 @@ const video = document.querySelector('#camera');
 const button = document.querySelector('#start');
 const readout = document.querySelector('#readout');
 const scores = document.querySelector('#scores');
+const mesh = document.querySelector('#mesh');
+const meshCtx = mesh.getContext('2d');
 
 let landmarker = null;
 let lastVideoTime = -1;
@@ -165,6 +167,7 @@ function tick() {
       signals[name] += (clamp(read(result)) - signals[name]) * SMOOTHING;
     }
     latestScores = result.faceBlendshapes[0] ? result.faceBlendshapes[0].categories : [];
+    if (!mesh.hidden) drawMesh(result);
   }
   applyTable(now);
   requestAnimationFrame(tick);
@@ -225,7 +228,8 @@ button.addEventListener('click', start);
 
 // ---- Readouts ---------------------------------------------------------------
 // D shows the object piece.js reads. B shows all 52 scores, to find the name of
-// the one you measured in the lab. V shows the camera. All off by default.
+// the one you measured in the lab. V shows the camera. F shows the face mesh on
+// black, for break-log screenshots. All off by default.
 
 addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
@@ -235,7 +239,41 @@ addEventListener('keydown', e => {
   }
   if (key === 'b') scores.hidden = !scores.hidden;
   if (key === 'v') video.classList.toggle('shown');
+  if (key === 'f') mesh.hidden = !mesh.hidden;
 });
+
+// The 478 points on black, the way screenshots and the break log show a face:
+// the camera image never appears. Drawn from the current frame and kept nowhere.
+// near's two points, 234 and 454, are joined in amber.
+function drawMesh(result) {
+  const w = innerWidth * devicePixelRatio, h = innerHeight * devicePixelRatio;
+  if (mesh.width !== w || mesh.height !== h) { mesh.width = w; mesh.height = h; }
+  meshCtx.fillStyle = '#000';
+  meshCtx.fillRect(0, 0, w, h);
+  // fit the camera frame to the screen, mirrored like the V view
+  const vw = video.videoWidth || 640, vh = video.videoHeight || 480;
+  const scale = Math.min(w / vw, h / vh);
+  const left = (w - vw * scale) / 2, top = (h - vh * scale) / 2;
+  const sx = p => left + (1 - p.x) * vw * scale;
+  const sy = p => top + p.y * vh * scale;
+  const dot = 1.5 * devicePixelRatio;
+  for (const face of result.faceLandmarks) {
+    meshCtx.fillStyle = '#f2efe9';
+    for (const p of face) meshCtx.fillRect(sx(p) - dot / 2, sy(p) - dot / 2, dot, dot);
+    const a = face[234], b = face[454];
+    meshCtx.strokeStyle = meshCtx.fillStyle = '#f5a623';
+    meshCtx.lineWidth = 2 * devicePixelRatio;
+    meshCtx.beginPath();
+    meshCtx.moveTo(sx(a), sy(a));
+    meshCtx.lineTo(sx(b), sy(b));
+    meshCtx.stroke();
+    for (const p of [a, b]) {
+      meshCtx.beginPath();
+      meshCtx.arc(sx(p), sy(p), 4 * devicePixelRatio, 0, Math.PI * 2);
+      meshCtx.fill();
+    }
+  }
+}
 
 function drawReadouts() {
   if (!readout.hidden && !failed) {
