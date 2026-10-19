@@ -24,27 +24,82 @@ let landmarker = null;
 let lastVideoTime = -1;
 let latestScores = []; // the 52 named scores from the last frame, for the B panel only
 let failed = false;    // the camera did not start; the readout holds the reason
+const raw = { width: 0, flat: 0 }; // near's raw reading, for the D panel only
+
+// ---- near (KL) ---------------------------------------------------------------
+// How close the nearest person is: 0 at the back of the space, 1 at arm's length
+// from the screen.
+//
+// The reading is how wide a face looks in the picture. A face looks wider the
+// closer it is, so the widest face in view belongs to the nearest person. Width
+// runs cheek to cheek, points 234 and 454, and counts depth (z) as well as x and
+// y, so turning your head to the side doesn't read as stepping back.
+//
+// The two widths below set the scale. Read them off the D panel ("width"):
+// stand at the back of the space for the first, at arm's length for the second.
+const WIDTH_AT_BACK = 0.06; // face width, as a fraction of the frame, at the back of the space
+const WIDTH_AT_ARM = 0.17;  // face width at arm's length from the screen
+
+// One quick move can make a person vanish from the readings for a few frames
+// (Disappearing Act). near keeps its last reading this long instead of dropping
+// to 0 in the middle of the move.
+const NEAR_KEEP_MS = 1000;
+
+function faceWidth(face, withDepth) {
+  const a = face[234], b = face[454];
+  // y runs 0 to 1 down the frame's height, so scale it to match x across the width
+  const aspect = (video.videoHeight || 480) / (video.videoWidth || 640);
+  const dz = withDepth ? b.z - a.z : 0; // z uses roughly the same scale as x
+  return Math.hypot(b.x - a.x, (b.y - a.y) * aspect, dz);
+}
+
+// Distance goes as 1 / width. Measured in arm's lengths it is 1 at arm's length
+// and WIDTH_AT_ARM / WIDTH_AT_BACK at the back; near runs 0 to 1 across that walk,
+// so near 0.6 means 60% of the way from the back to arm's length.
+function nearFromWidth(width) {
+  const back = WIDTH_AT_ARM / WIDTH_AT_BACK;
+  const distance = WIDTH_AT_ARM / width;
+  return clamp((back - distance) / (back - 1));
+}
 
 // ---- Signals --------------------------------------------------------------
 // Each function gets one frame's result and returns a number from 0 to 1.
-// Add yours here. Its name has to match a name in table.js signals.
+// Its name has to match a name in table.js signals.
 
 const SIGNALS = {
-  // present: 1 when a face is in view, 0 when not. Smoothed below, so one
-  // missed frame does not count as somebody leaving.
+  // present (TS): the starter's worked signal, 1 when a face is in view, 0 when
+  // not. Smoothed below, so one missed frame does not count as somebody leaving.
   present: result => (result.faceLandmarks.length > 0 ? 1 : 0),
 
-  // open: the worked signal. jawOpen is one of the 52 scores, already 0 to 1.
-  open: result => score(result, 'jawOpen'),
+  // near (KL): see above.
+  near: (() => {
+    let last = 0;
+    let seenAt = -Infinity;
+    return result => {
+      const now = performance.now();
+      if (result.faceLandmarks.length === 0) {
+        raw.width = raw.flat = 0;
+        return now - seenAt < NEAR_KEEP_MS ? last : 0;
+      }
+      raw.width = Math.max(...result.faceLandmarks.map(face => faceWidth(face, true)));
+      raw.flat = Math.max(...result.faceLandmarks.map(face => faceWidth(face, false)));
+      last = nearFromWidth(raw.width);
+      seenAt = now;
+      return last;
+    };
+  })(),
 
-  // Your signal goes here. Two patterns to copy:
+  // still (WC): how little the person has moved over the last second, from 0
+  // while walking or gesturing to 1 when holding completely still. Will's reader
+  // goes here. Until it does, the mouse keeps driving still (top 0, bottom 1).
+  //
+  // Two patterns to copy:
   //
   // A named score from the lab (the B panel shows every name):
   //   smile: result => (score(result, 'mouthSmileLeft') + score(result, 'mouthSmileRight')) / 2,
   //
-  // Geometry from the 478 points (x and y run 0 to 1 across the frame):
   // A number that needs the last frame too, kept in a closure (how little the
-  // nose moved since the previous frame):
+  // nose moved since the previous frame; x and y run 0 to 1 across the frame):
   //   still: (() => {
   //     let last = null;
   //     return result => {
@@ -55,13 +110,6 @@ const SIGNALS = {
   //       return clamp(1 - moved * 40); // a jump of 1/40 of the frame reads 0
   //     };
   //   })(),
-  //
-  //   near: result => {
-  //     const face = result.faceLandmarks[0];
-  //     if (!face) return 0;
-  //     const width = Math.abs(face[454].x - face[234].x); // cheek to cheek
-  //     return clamp((width - 0.15) / 0.35);               // 0.15 far ... 0.5 at the screen
-  //   },
 };
 
 // One of the 52 scores by name, or 0 when no face is in view.
@@ -139,7 +187,7 @@ async function start() {
     const options = {
       baseOptions: { modelAssetPath: MODEL, delegate: 'GPU' },
       runningMode: 'VIDEO',
-      numFaces: 1,
+      numFaces: 3, // near is about the nearest person, so look past the first face
       outputFaceBlendshapes: true,
     };
     try {
@@ -193,9 +241,11 @@ function drawReadouts() {
     const { state, signals: s, since } = window.sense;
     const held = ((performance.now() - since) / 1000).toFixed(1);
     const lines = Object.entries(s).map(([k, v]) => `${k.padEnd(8)} ${v.toFixed(2)}`);
+    // near's raw reading: set WIDTH_AT_BACK and WIDTH_AT_ARM from this number
+    const width = `width    ${raw.width.toFixed(3)}  (flat ${raw.flat.toFixed(3)})`;
     readout.textContent =
       `${window.senseLive ? 'camera on' : 'fake: keys 1-9, mouse'}\n` +
-      `state    ${state}  (${held} s)\n` + lines.join('\n');
+      `state    ${state}  (${held} s)\n` + lines.join('\n') + '\n' + width;
   }
   if (!scores.hidden) {
     scores.textContent = latestScores.length
