@@ -15,6 +15,17 @@ const LIBRARY = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/visi
 const WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/wasm';
 const MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 
+// The library also posts usage statistics (counts and timings, not frames) to
+// Google once a minute, with no option to turn it off. We say the Network panel
+// stays quiet after the model loads, so that one address gets a refusal here
+// instead of a request. After one refusal the library stops trying.
+const USAGE_LOG = 'https://odml.pa.googleapis.com/';
+const networkFetch = window.fetch.bind(window);
+window.fetch = (input, init) =>
+  String(input instanceof Request ? input.url : input).startsWith(USAGE_LOG)
+    ? Promise.resolve(new Response(null, { status: 403 }))
+    : networkFetch(input, init);
+
 const video = document.querySelector('#camera');
 const button = document.querySelector('#start');
 const readout = document.querySelector('#readout');
