@@ -200,8 +200,9 @@ async function start() {
     video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
     await video.play();
     for (const name of window.TABLE.signals) {
-      if (!SIGNALS[name]) console.warn(`table.js names a signal "${name}" that sense.js does not read yet.`);
+      if (!SIGNALS[name]) console.warn(`table.js names a signal "${name}" that sense.js does not read yet. The mouse keeps driving it.`);
     }
+    window.senseReads = new Set(window.TABLE.signals.filter(name => SIGNALS[name]));
     window.senseLive = true;
     failed = false;
     button.remove();
@@ -240,7 +241,8 @@ function drawReadouts() {
   if (!readout.hidden && !failed) {
     const { state, signals: s, since } = window.sense;
     const held = ((performance.now() - since) / 1000).toFixed(1);
-    const lines = Object.entries(s).map(([k, v]) => `${k.padEnd(8)} ${v.toFixed(2)}`);
+    const onMouse = name => window.senseLive && !(window.senseReads && window.senseReads.has(name));
+    const lines = Object.entries(s).map(([k, v]) => `${k.padEnd(8)} ${v.toFixed(2)}${onMouse(k) ? '  (mouse)' : ''}`);
     // near's raw reading: set WIDTH_AT_BACK and WIDTH_AT_ARM from this number
     const width = `width    ${raw.width.toFixed(3)}  (flat ${raw.flat.toFixed(3)})`;
     readout.textContent =

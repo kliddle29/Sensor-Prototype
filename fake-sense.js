@@ -4,7 +4,8 @@
 //   number keys 1, 2, 3 ... set the state (in the order of your table's rows)
 //   the mouse sets the signals: left to right is the first signal, top to bottom
 //   the second
-// When sense.js goes live it sets window.senseLive and this file stops writing.
+// When sense.js goes live it sets window.senseLive and this file stops writing,
+// except for any signal sense.js has no reader for yet (window.senseReads).
 
 (function () {
   const names = window.TABLE.states.map(row => row.name);
@@ -30,9 +31,12 @@
     }
   });
 
+  // A signal sense.js doesn't read yet stays on the mouse even after the camera
+  // starts, so one partner's missing reader costs one signal, not the piece.
+  const faked = name => !(window.senseLive && window.senseReads && window.senseReads.has(name));
+
   addEventListener('pointermove', e => {
-    if (window.senseLive) return;
-    if (first) signals[first] = e.clientX / innerWidth;
-    if (second) signals[second] = e.clientY / innerHeight;
+    if (first && faked(first)) signals[first] = e.clientX / innerWidth;
+    if (second && faked(second)) signals[second] = e.clientY / innerHeight;
   });
 })();
