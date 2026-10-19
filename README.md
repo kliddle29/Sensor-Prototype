@@ -1,65 +1,75 @@
-# Sensor Layer starter
+# Sensor Layer prototype
 
-Computer Coding Studio, fall 2026. The camera, the model, one worked signal and a fake sensor, so your pair starts from a piece that already runs.
+Kenzo Liddle (KL) · Will Chamberlain (WC) · Tate (TS). States from our field guide, *Gaze Lexicography*.
 
-**Live:** https://flyinthelyceum.github.io/sensor-layer-starter/ (click Start the camera; press D, B, V)
+**Live:** add the GitHub Pages URL here once Pages is on.
 
-## Make it yours
+A full-screen field of drifting grain and one low tone. It never shows a word, so every state reaches the visitor as grain and sound alone.
 
-1. Click **Use this template**, then **Create a new repository**, under one partner's account. Add the other partner as a collaborator (Settings, Collaborators).
-2. Both partners clone it, open it in VS Code, and run it with a local server. Live Server works, or in the terminal: `python3 -m http.server`, then open `http://localhost:8000`. Opening `index.html` straight from the Finder will not reach the camera.
-3. Turn on GitHub Pages: Settings, Pages, branch `main`, folder `/ (root)`. That address is the live URL you submit.
+## What it does for the person, and to them
 
-## The files
+**For them:** *(one sentence, ours to write)*
 
-| File | Job | Who edits it |
-|---|---|---|
-| `table.js` | Your State Table, row for row: the signals, the states, the rules, the holds | both of you, first |
-| `sense.js` | Reads the camera, turns readings into signals, applies the table, writes `window.sense` | each partner, your own signal |
-| `piece.js` | Reads `window.sense` every frame and answers | both of you |
-| `fake-sense.js` | Writes the same object with no camera: number keys set the state, the mouse sets the signals | only if your signal names change |
-| `index.html` | Loads them in order | rarely |
+**To them:** *(one sentence, ours to write)*
 
-## The object
+## Signals
 
-```js
-window.sense = {
-  state: 'here',                          // one word from your State Table
-  signals: { present: 0.98, open: 0.02 }, // each a number from 0 to 1
-  since: 184203.5                         // performance.now() when this state began
-};
-```
+| Signal | Owner | What it measures | Where |
+|---|---|---|---|
+| `near` | KL | How close the nearest person is: 0 at the back of the space, 1 at arm's length from the screen. Read from the widest face's cheek-to-cheek width (points 234 and 454, counting depth). | `sense.js`, `near` |
+| `still` | WC | How little the person has moved over the last second: 0 walking or gesturing, 1 holding completely still. | `sense.js`, `still` (not written yet; the mouse drives it until it is) |
+| `present` | TS | Whether anyone is in range at all: 0 empty, 1 a person clearly there. | `sense.js`, `present` (the starter's version for now) |
 
-`piece.js` reads this and nothing else. It never touches the camera. That is why the piece keeps running on `fake-sense.js` when no camera is there, and why a scene you build in November can run off the sensor you build now.
+## The State Table
 
-## Adding your signal
+Checked top to bottom; the first true rule wins, after its hold. A reading between rules keeps the last state.
 
-1. Add its name to `signals` in `table.js`.
-2. Add a function with the same name to `SIGNALS` in `sense.js`. It gets one frame's result and returns a number from 0 to 1. There are two patterns in the comments there: one of the 52 named scores from the lab, or geometry from the 478 points.
-3. Use it in a rule in `table.js`. Press **D** to watch the number while you set the threshold. Thresholds that move go in your break log.
+| State | Owner | Rule | Hold | The piece does |
+|---|---|---|---|---|
+| nobody | TS | `present` below 0.2 | 5 s | The screen fades to black, the tone stops, and the piece erases the pattern the last visitor built. |
+| Performative (no. 13) | WC | `near` 0.2 to 0.6 and `still` below 0.4 | 1.5 s | The grain swirls out to the edges and a crowd murmur swells with each movement. |
+| Planted (no. 14) | WC | `near` 0.2 to 0.6 and `still` above 0.75 | 3 s | The grain sinks into a level floor along the bottom and the tone holds one low note. |
+| Recursive (no. 08) | KL | `near` above 0.6 and `still` above 0.75 | 4 s | The grain slows and sharpens into a fine pattern, finer each second they stay, while the tone fades to near silence. |
+| Breached (no. 04) | KL | `near` above 0.6 and `still` below 0.3 | 0.5 s | The grain bursts out from the center in one white flash with a short, sharp chord. |
 
-## Keys
+The numbers are the paper table's. Monday's first readings set the real ones; any threshold that moves goes in the break log.
 
-- **D**: the object `piece.js` reads, live
-- **B**: all 52 named scores, to find the one you measured in the Make a Face lab
-- **V**: the camera, small, in the corner
-- **1, 2, 3 …** and the **mouse**: drive the fake sensor before the camera starts
+## Run it
 
-## When Start does nothing useful
+Run it from a local server; opening `index.html` from the Finder won't reach the camera. Live Server works, or `python3 -m http.server` and open `http://localhost:8000`. Click **Start the camera**. Sound starts on the first click or key.
 
-If the readout says the face library did not load, the school network is blocking `cdn.jsdelivr.net`. Press **D** and keep going on the fake sensor: the piece reads the same object either way. A new state you add to `table.js` gets a bright colour of its own in `piece.js` until you give it one.
+| Key | Does |
+|---|---|
+| D | The object `piece.js` reads, live, plus `near`'s raw face width |
+| B | All 52 named scores |
+| V | The camera, small, in the corner |
+| F | The face mesh on black (for screenshots; the camera image never shows) |
+| M | Mute |
+| 1 to 5 + mouse | Before the camera: keys set the state (1 nobody, 2 Performative, 3 Planted, 4 Recursive, 5 Breached), mouse x sets `near`, mouse y sets `still` |
 
-## Bench pairs: an Arduino instead of the camera
+After the camera starts, any signal `sense.js` doesn't read yet stays on the mouse, marked "(mouse)" in the D panel.
 
-The bench track swaps the sense layer and nothing else. `piece.js` and `fake-sense.js` stay exactly as they are. The wiring, a photo of a working build and upload fixes are in `bench/README.md`.
+### Setting `near`'s scale
 
-1. Build the circuit and flash `bench/bench.ino` from the Arduino IDE. It prints one line per reading, like `cm 42.5`. Check it in the IDE's Serial Monitor at 115200, then **close the Serial Monitor**: only one program can hold the port.
-2. Open **`bench.html`** instead of `index.html`, on localhost in **Chrome**. It loads the bench table and the serial sense layer; nothing to edit.
-3. Click **Connect the Arduino** and pick the board. Press **D** to see the raw line and your signals.
-4. Your State Table lives in **`bench/table-bench.js`** (same format as `table.js`). Your signal is a function in `SIGNALS` in `bench/sense-serial.js`: it gets the latest reading (`{ cm: 42.5 }`) and returns 0 to 1. Add the sensor to the sketch's printed line, then its function, then its name in `bench/table-bench.js`.
+`WIDTH_AT_BACK` and `WIDTH_AT_ARM` at the top of `near` in `sense.js` are guesses. Press D, stand at the back of the space and note `width`, then at arm's length and note it again, and put those two numbers in.
+
+## Files
+
+| File | Job |
+|---|---|
+| `table.js` | The State Table above, in code |
+| `sense.js` | Reads the camera (MediaPipe Face Landmarker 1.1.1), turns readings into signals, applies the table, writes `window.sense` |
+| `piece.js` | Reads `window.sense` every frame and draws and sounds the piece. Each state's part is marked with its owner; Performative, Planted and nobody are first drafts for WC and TS to rework |
+| `fake-sense.js` | Writes the same object with no camera; loads first |
+| `index.html` | Loads them in order |
 
 ## What stays in the browser
 
-Nothing saves a frame or a landmark list. The model downloads once when you click Start; after that the Network panel stays quiet. Keep it that way: no `localStorage` of readings, no uploads, no screenshots of the camera image in the repo. Screenshots for your break log show the piece or the D readout.
+Nothing saves a frame or a landmark list. The model downloads once when Start is clicked; after that the Network panel stays quiet. All sound is made in the page. Screenshots in this repo show the piece, the D panel or the F mesh, never the camera image.
 
-The instrument is MediaPipe Face Landmarker, pinned to version 1.1.1, the same one the Make a Face lab used.
+## Break log
+
+Date, commit hash, what broke, what we changed.
+
+| Date | Commit | What broke | What we changed |
+|---|---|---|---|
