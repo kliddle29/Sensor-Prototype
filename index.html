@@ -16,6 +16,7 @@
              font: 16px/1.2 system-ui, sans-serif; padding: 12px 20px; border-radius: 6px;
              border: 1px solid #f2efe9; background: transparent; color: #f2efe9; cursor: pointer; }
     #start:disabled { opacity: 0.6; cursor: wait; }
+    #start small { display: block; margin-top: 6px; font-size: 12px; opacity: 0.6; }
     pre { position: fixed; margin: 0; padding: 10px 12px; font: 12px/1.45 ui-monospace, Menlo, monospace;
           color: #f2efe9; background: rgba(0, 0, 0, 0.7); border-radius: 4px; white-space: pre; }
     #readout { left: 12px; top: 12px; }
@@ -26,7 +27,7 @@
   <canvas id="piece"></canvas>
   <canvas id="mesh" hidden></canvas>
   <video id="camera" playsinline muted></video>
-  <button id="start">Start the camera</button>
+  <button id="start">Start the camera<small>It stays in this page. Nothing is saved.</small></button>
   <pre id="readout" hidden></pre>
   <pre id="scores" hidden></pre>
 
