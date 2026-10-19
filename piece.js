@@ -336,8 +336,8 @@ function draw(dt, t, state, near) {
 
 // ---- The tone ---------------------------------------------------------------
 // One low tone, Performative's murmur and Breached's chord, all made here with
-// Web Audio, so nothing downloads. A browser lets a page make sound only after a click or a key, so it
-// starts on the first one; the Start button counts. M mutes.
+// Web Audio, so nothing downloads. A browser lets a page make sound only after a
+// click or a key, so it starts on the first one; the Start button counts. M mutes.
 
 let audio = null;
 let muted = false;

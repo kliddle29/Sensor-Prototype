@@ -6,7 +6,7 @@
 // pinned to one version so it cannot change under you mid-module.
 //
 // What stays in the browser: every frame is read and dropped. Nothing here saves
-// a frame or a landmark list. The model downloads once when the page loads;
+// a frame or a landmark list. The model downloads once when Start is clicked;
 // after that the Network panel should stay quiet.
 
 // The library loads when you click Start, not before, so a blocked network shows

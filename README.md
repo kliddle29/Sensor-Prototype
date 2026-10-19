@@ -17,7 +17,7 @@ A full-screen field of drifting grain and one low tone. It never shows a word, s
 | Signal | Owner | What it measures | Where |
 |---|---|---|---|
 | `near` | KL | How close the nearest person is: 0 at the back of the space, 1 at arm's length from the screen. Read from the widest face's cheek-to-cheek width (points 234 and 454, counting depth). | `sense.js`, `near` |
-| `still` | WC | How little the person has moved over the last second: 0 walking or gesturing, 1 holding completely still. | `sense.js`, `still` (not written yet; the mouse drives it until it is) |
+| `still` | WC | How little the person has moved over the last second: 0 walking or gesturing, 1 holding completely still. Read from five head points (forehead, between the eyes, nose tip, both cheeks) that talking and blinking don't move, in face widths per second. | `sense.js`, `still` (written at KL's request so the camera drives every signal; WC's to tune or rework) |
 | `present` | TS | Whether anyone is in range at all: 0 empty, 1 a person clearly there. | `sense.js`, `present` (the starter's version for now) |
 
 ## The State Table
@@ -40,18 +40,21 @@ Run it from a local server; opening `index.html` from the Finder won't reach the
 
 | Key | Does |
 |---|---|
-| D | The object `piece.js` reads, live, plus `near`'s raw face width |
+| D | The object `piece.js` reads, live, plus the raw readings behind `near` (`width`) and `still` (`moved`) |
 | B | All 52 named scores |
 | V | The camera, small, in the corner |
 | F | The face mesh on black (for screenshots; the camera image never shows) |
 | M | Mute |
 | 1 to 5 + mouse | Before the camera: keys set the state (1 nobody, 2 Performative, 3 Planted, 4 Recursive, 5 Breached), mouse x sets `near`, mouse y sets `still` |
 
-After the camera starts, any signal `sense.js` doesn't read yet stays on the mouse, marked "(mouse)" in the D panel.
+After the camera starts, the camera drives all three signals. A signal with no reader in `sense.js` would stay on the mouse, marked "(mouse)" in the D panel.
 
-### Setting `near`'s scale
+### Setting the numbers from real readings
 
-`WIDTH_AT_BACK` and `WIDTH_AT_ARM` at the top of `near` in `sense.js` are guesses. Press D, stand at the back of the space and note `width`, then at arm's length and note it again, and put those two numbers in.
+The constants at the top of `near` and `still` in `sense.js` are guesses until we read them off the D panel:
+
+- `WIDTH_AT_BACK` and `WIDTH_AT_ARM`: stand at the back of the space and note `width`, then at arm's length and note it again.
+- `STILL_FULL_MOVE` and `STILL_JITTER`: note `moved` while gesturing, which should reach `STILL_FULL_MOVE` so `still` reads 0, and while holding still, which should stay near 0. If holding still doesn't, raise `STILL_JITTER`.
 
 ## Files
 
