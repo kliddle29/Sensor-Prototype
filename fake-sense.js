@@ -14,7 +14,7 @@
   for (const name of window.TABLE.signals) signals[name] = 0;
 
   window.sense = {
-    state: names[names.length - 1], // the last row, usually "nobody"
+    state: names.includes('nobody') ? 'nobody' : names[names.length - 1],
     signals,
     since: performance.now(),
   };
@@ -25,6 +25,8 @@
     if (row >= 0 && row < names.length && names[row] !== window.sense.state) {
       window.sense.state = names[row];
       window.sense.since = performance.now();
+      // our table has a present signal: somebody is there in every state but nobody
+      if ('present' in signals) signals.present = names[row] === 'nobody' ? 0 : 1;
     }
   });
 
